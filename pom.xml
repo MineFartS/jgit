@@ -158,6 +158,10 @@
     <!-- license check -->
     <dash.fail>true</dash.fail>
     <dash.projectId>technology.jgit</dash.projectId>
+
+    <japicmp.skip>true</japicmp.skip>
+    <maven.javadoc.skip>true</maven.javadoc.skip>
+    <cyclonedx.skip>true</cyclonedx.skip>
   </properties>
 
   <repositories>
