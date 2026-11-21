@@ -30,10 +30,17 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Supplier;
 
 import org.eclipse.jgit.annotations.NonNull;
 import org.eclipse.jgit.annotations.Nullable;
 import org.eclipse.jgit.api.errors.JGitInternalException;
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.AddCommand;
+import org.eclipse.jgit.api.RmCommand;
+import org.eclipse.jgit.api.CommitCommand;
+import org.eclipse.jgit.api.GitCommand;
+import org.eclipse.jgit.api.errors.GitAPIException;
 import org.eclipse.jgit.attributes.AttributesNode;
 import org.eclipse.jgit.attributes.AttributesNodeProvider;
 import org.eclipse.jgit.errors.ConfigInvalidException;
@@ -58,6 +65,7 @@ import org.eclipse.jgit.lib.ReflogReader;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.StoredConfig;
 import org.eclipse.jgit.revwalk.RevWalk;
+import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileBasedConfig;
 import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
 import org.eclipse.jgit.storage.pack.PackConfig;
@@ -67,6 +75,8 @@ import org.eclipse.jgit.util.IO;
 import org.eclipse.jgit.util.RawParseUtils;
 import org.eclipse.jgit.util.StringUtils;
 import org.eclipse.jgit.util.SystemReader;
+import org.eclipse.jgit.dircache.DirCache;
+
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -104,6 +114,9 @@ public class FileRepository extends Repository {
 	private final ObjectDirectory objectDatabase;
 
 	private final Object snapshotLock = new Object();
+
+    /** Porcelain Git API wrapper for this repository. */
+    public final Git git = new Git(this);
 
 	// protected by snapshotLock
 	private FileSnapshot snapshot;
@@ -206,6 +219,73 @@ public class FileRepository extends Repository {
 			snapshot = FileSnapshot.save(getIndexFile());
 		}
 	}
+
+    /**
+     * Functional interface for configuring and running a Git command.
+     *
+     * @param <T> the GitCommand type
+     */
+    @FunctionalInterface
+    public interface GitOp<T> {
+        /**
+         * Configures the given command.
+         *
+         * @param cmd the command instance
+         * @throws GitAPIException if command configuration fails
+         */
+        void run(T cmd) throws GitAPIException;
+    }
+
+    private <T extends GitCommand<R>, R> R runcmd(
+        Supplier<T> cmdSupplier,
+        GitOp<T> op
+    ) {
+        try {
+            T cmd = cmdSupplier.get();
+            op.run(cmd);
+            return cmd.call();
+        } catch (GitAPIException e) {
+            return null;
+        }
+    }
+
+    /**
+     * Stages files to the index using a configured {@link AddCommand}.
+     *
+     * @param op
+     *            callback to configure the {@link AddCommand}
+     * @return the {@link AddCommand} result, or {@code null} if a
+     *         {@link GitAPIException} occurred
+     */
+    public DirCache add(GitOp<AddCommand> op) {
+        return runcmd(git::add, op);
+    }
+
+    /**
+     * Removes files from the working tree and index using a configured
+     * {@link RmCommand}.
+     *
+     * @param op
+     *            callback to configure the {@link RmCommand}
+     * @return the {@link RmCommand} result, or {@code null} if a
+     *         {@link GitAPIException} occurred
+     */
+    public DirCache rm(GitOp<RmCommand> op) {
+        return runcmd(git::rm, op);
+    }
+
+    /**
+     * Records changes to the repository using a configured
+     * {@link CommitCommand}.
+     *
+     * @param op
+     *            callback to configure the {@link CommitCommand}
+     * @return the {@link CommitCommand} result, or {@code null} if a
+     *         {@link GitAPIException} occurred
+     */
+    public RevCommit commit(GitOp<CommitCommand> op) {
+        return runcmd(git::commit, op);
+    }
 
 	private void loadRepoConfig() throws IOException {
 		try {
