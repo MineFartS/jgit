@@ -5,17 +5,7 @@ genrule(
     testonly = 1,
     srcs = [
         "//org.eclipse.jgit:jgit",
-        "//org.eclipse.jgit.pgm:pgm",
-        "//org.eclipse.jgit.ui:ui",
-        "//org.eclipse.jgit.archive:jgit-archive",
-        "//org.eclipse.jgit.http.apache:http-apache",
-        "//org.eclipse.jgit.http.server:jgit-servlet",
         "//org.eclipse.jgit.lfs:jgit-lfs",
-        "//org.eclipse.jgit.lfs.server:jgit-lfs-server",
-        "//org.eclipse.jgit.junit:junit",
-        "//org.eclipse.jgit.ssh.apache:ssh-apache",
-        "//org.eclipse.jgit.ssh.apache.agent:ssh-apache-agent",
-        "//org.eclipse.jgit.ssh.jsch:ssh-jsch",
     ],
     outs = ["all.zip"],
     cmd = " && ".join([
