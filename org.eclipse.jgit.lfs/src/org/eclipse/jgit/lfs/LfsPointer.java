@@ -27,6 +27,10 @@ import org.eclipse.jgit.annotations.Nullable;
 import org.eclipse.jgit.lfs.lib.AnyLongObjectId;
 import org.eclipse.jgit.lfs.lib.Constants;
 import org.eclipse.jgit.lfs.lib.LongObjectId;
+import org.eclipse.jgit.lib.ObjectReader;
+import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.lib.ObjectId;
 import org.eclipse.jgit.util.IO;
 
 /**
@@ -148,6 +152,40 @@ public class LfsPointer implements Comparable<LfsPointer> {
 		// reset "in".
 		return parse(new BufferedInputStream(in));
 	}
+
+    /**
+     * Try to parse the blob identified by {@code objectId} in {@code repo} to the
+     * format defined by {@link #VERSION}. If the blob size exceeds
+     * {@link #SIZE_THRESHOLD}, {@code null} is returned immediately without
+     * opening or reading the object stream.
+     *
+     * @param repo
+     *            the {@link org.eclipse.jgit.lib.Repository} containing the
+     *            object
+     * @param objectId
+     *            the {@link org.eclipse.jgit.lib.ObjectId} of the blob to parse
+     * @return an {@link org.eclipse.jgit.lfs.LfsPointer} or {@code null} if the
+     *         blob was larger than {@link #SIZE_THRESHOLD} or not parseable as an
+     *         LfsPointer
+     * @throws java.io.IOException
+     *             if an IO error occurred
+     */
+    @Nullable
+    public static LfsPointer parseLfsPointer(Repository repo, ObjectId objectId) throws IOException {
+        try (ObjectReader reader = repo.newObjectReader()) {
+
+            if (reader.getObjectSize(objectId, 3) > SIZE_THRESHOLD) {
+                return null;
+            }
+
+            ObjectLoader loader = reader.open(objectId, 3);
+
+            try (InputStream in = loader.openStream()) {
+                return parseLfsPointer(in);
+            }
+
+        }
+    }
 
 	@Nullable
 	private static LfsPointer parse(InputStream in)
