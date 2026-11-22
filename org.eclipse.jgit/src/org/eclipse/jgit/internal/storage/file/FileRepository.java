@@ -64,6 +64,9 @@ import org.eclipse.jgit.lib.ReflogEntry;
 import org.eclipse.jgit.lib.ReflogReader;
 import org.eclipse.jgit.lib.Repository;
 import org.eclipse.jgit.lib.StoredConfig;
+import org.eclipse.jgit.lib.ObjectReader;
+import org.eclipse.jgit.lib.ObjectLoader;
+import org.eclipse.jgit.treewalk.TreeWalk;
 import org.eclipse.jgit.revwalk.RevWalk;
 import org.eclipse.jgit.revwalk.RevCommit;
 import org.eclipse.jgit.storage.file.FileBasedConfig;
@@ -285,6 +288,44 @@ public class FileRepository extends Repository {
      */
     public RevCommit commit(GitOp<CommitCommand> op) {
         return runcmd(git::commit, op);
+    }
+
+    /**
+     * Recursively walks the {@code HEAD} commit tree and collects metadata for all tracked files.
+     *
+     * @return a list of {@link IndexItem} entries representing every file in {@code HEAD},
+     *         or an empty list if the repository has no commits
+     * @throws IOException if the {@code HEAD} reference cannot be resolved or the object database cannot be read
+     */
+    public List<IndexItem> getIndex() throws IOException {
+
+        ObjectId headId = resolve("HEAD");
+        List<IndexItem> items = new ArrayList<>();
+
+        try (RevWalk revWalk = new RevWalk(this);
+             TreeWalk treeWalk = new TreeWalk(this);
+             ObjectReader reader = newObjectReader()
+        ) {
+
+            treeWalk.addTree(revWalk.parseCommit(headId).getTree());
+            treeWalk.setRecursive(true);
+
+            while (treeWalk.next()) {
+
+                IndexItem i = new IndexItem();
+                i.path = "/" + treeWalk.getPathString().replace('\\', '/');
+                i.objectId = treeWalk.getObjectId(0);
+
+                ObjectLoader loader = reader.open(i.objectId, Constants.OBJ_BLOB);
+
+                i.size = loader.getSize();
+
+                items.add(i);
+
+            }
+        }
+
+        return items;
     }
 
 	private void loadRepoConfig() throws IOException {
